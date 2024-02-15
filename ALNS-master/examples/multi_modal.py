@@ -106,7 +106,7 @@ stop = MaxIterations(3000) #iteration을 1000번 까지 수행하도록 설정
 result = alns.iterate(init, select, accept, stop)
 
 solution = result.best_state
-objective = solution.objective()
+objective = solution.objective() #objective_time_penalty로 갈아끼우려면 plotter와 repair에 insert_cost 변경
 pct_diff = -(100 * (objective - 7) / 7) #일단 우리는 best_known_solution을 정확히 모르니까, initial cost를 7로 설정
 
 plotter.plot_current_solution(solution, 'Simple ALNS')
