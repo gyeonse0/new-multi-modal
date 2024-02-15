@@ -122,8 +122,7 @@ class Repair():
     
     
     
-    
-    
+
     
     def greedy_truck_repair(self, state, rnd_state):
         """
@@ -154,7 +153,7 @@ class Repair():
                     for i, route in enumerate(routes):
                         if route == [(0, 0), (0, 0)]:
                             # 빈 route에 고객 추가
-                            routes[i] = [(0, 0), customer, (0, 0)]
+                            routes[i] = [(0, 0), (customer[0],0), (0, 0)]
                 
             
         self.truck_repair_visit_type_update(routes) #최종적으로 visit_type 검사
