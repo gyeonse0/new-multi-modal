@@ -25,6 +25,7 @@ class FileReader:
             "battery_kwh_d": None,
             "energy_kwh/km_t": None,
             "energy_kwh/km_d": None,
+            "charging_kw_d": None,
             "losistic_kwh/kg_t": None,
             "losistic_kwh/kg_d": None,
             "speed_t": None,
@@ -106,6 +107,8 @@ class FileReader:
                 self.data["energy_kwh/km_t"] = float(value)
             elif keyword == "ENERGY_KWH/KM_D:":
                 self.data["energy_kwh/km_d"] = float(value)
+            elif keyword == "CHARGING_KW_D:":
+                self.data["charging_kw_d"] = float(value)
             elif keyword == "LOSISTIC_KWH/KG_T:":
                 self.data["losistic_kwh/kg_t"] = float(value)
             elif keyword == "LOSISTIC_KWH/KG_D:":
