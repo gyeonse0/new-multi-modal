@@ -1,23 +1,16 @@
+import copy
+import random
 from types import SimpleNamespace
+import vrplib 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.random as rnd
+from typing import List
+from itertools import groupby
 
-from FileReader import *
-from SolutionPlotter import *
-from RouteInitializer import *
 from RouteGenerator import *
-from Destroy import *
-from Repair import *
-from MultiModalState import *
-
-from alns import ALNS
-from alns.accept import SimulatedAnnealing
-from alns.select import RouletteWheel
-from alns.stop import MaxIterations
-
-SEED = 1234
-rnd_state = np.random.RandomState(None)
+from FileReader import *
 
 vrp_file_path = r'C:\Users\these\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.vrp'
 sol_file_path = r'C:\Users\these\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.sol'
@@ -26,100 +19,205 @@ file_reader = FileReader()
 data = file_reader.read_vrp_file(vrp_file_path)
 bks = file_reader.read_sol_file(sol_file_path)
 
-### RouteInitializer 클래스 instance 
-initializer = RouteInitializer(data, k=2, l=1, max_drone_mission=4)
-initial_solution = initializer.nearest_neighbor_init_truck()
-initial_truck = initializer.init_truck()
+globals
+IDLE = 0 # 해당 노드에 드론이 트럭에 업힌 상태의 경우
+FLY = 1 # 해당 노드에서 트럭이 드론의 임무를 위해 드론을 날려주는 경우
+ONLY_DRONE = 2 # 해당 노드에 드론만이 임무를 수행하는 서비스 노드인 경우
+CATCH = 3 # 해당 노드에서 트럭이 임무를 마친 드론을 받는 경우
+ONLY_TRUCK = 4 # 해당 노드에서 트럭만이 임무를 수행하는 경우 (드론이 업혀있지 않음)
+NULL = None # 해당 노드가 전체 ROUTES에 할당이 안되어 있는 경우 (SOLUTION에서 UNVISITED 한 노드)
 
-#print("\nonly truck's(NN)", initial_truck)
+class MultiModalState:
+    """
+    routes 딕셔너리 집합을 input으로 받아서 copy를 수행한 뒤, 해당 routes 에서의 정보를 추출하는 함수
+    output: objective cost value / 특정 customer node를 포함한 route  
+    """
+    def __init__(self, routes, unassigned=None):
+        self.routes = routes
+        self.unassigned = unassigned if unassigned is not None else []
+        
+        unassigned_check=[]
+        for node_id in range(1, data["dimension"]):
+            is_in_routes = any(node_id == node[0] for route in routes for node in route)
+            if not is_in_routes and (node_id, None) not in unassigned_check:
+                unassigned_check.append((node_id, None))
+        
+        self.unassigned = unassigned_check
 
-
-current_route = initializer.makemakemake(initial_solution)
-### currnet route 정보 출력 debugging code
-#print("\nCurrent's", current_route)
-#print("Current Objective cost :",MultiModalState(current_route).objective())
-
-
-### SolutionPlotter 클래스 instance
-plotter = SolutionPlotter(data)
-### route 플러팅 시각화 debugging code
-#plotter.plot_current_solution(initial_truck,name="Init Solution(NN/Truck)")
-#plotter.plot_current_solution(current_route,name="Multi_Modal Solution")
-
-
-### Destroy 클래스 debugging code
-destroyer = Destroy()
-destroyed_route1 = destroyer.random_removal(current_route,rnd_state)
-##print("\nrandom removal's", destroyed_route1)
-### Destroy 플러팅 시각화 debugging code
-#plotter.plot_current_solution(destroyed_route1,name="Random Removal1")
-
-### Repair 클래스 debugging code
-Rep = Repair()
-repaired_route1 = Rep.drone_first_truck_second(destroyed_route1,rnd_state) # greedy_drone_repair로 변경가능
-#print("\nRepair's", repaired_route1)
-### Repair 플러팅 시각화 debugging code
-#plotter.plot_current_solution(repaired_route1,name="drone Repair1")
-
-destroyed_route2 = destroyer.random_removal(repaired_route1,rnd_state)
-#print("\nrandom removal's", destroyed_route2)
-### Destroy 플러팅 시각화 debugging code
-#plotter.plot_current_solution(destroyed_route2,name="Random Removal2")
-
-repaired_route2 = Rep.drone_first_truck_second(destroyed_route2,rnd_state) # greedy_drone_repair로 변경가능
-#print("\nRepair's", repaired_route2)
-### Repair 플러팅 시각화 debugging code
-#plotter.plot_current_solution(repaired_route2,name="drone Repair2")
-"""
-class Feasibility:
+    def copy(self):
+        return MultiModalState(
+            copy.deepcopy(self.routes, self.unassigned.copy())
+        )
+        
+    def __str__(self):
+        return f"Routes: {self.routes}, Unassigned: {self.unassigned}" 
     
-    #heuristics/ALNS part 에서 우리가 설정한 제약조건을 만족하는지 checking하는 클래스
-    #return 형식 : Ture/False
+    def __iter__(self):
+        return iter(self.routes)       
+        
+        
+    def objective(self):
+        """
+        data와 routes 딕셔너리 집합을 이용하여 objective value 계산해주는 함수
+        our objective cost value = energy_consunmption(kwh)
+        energy_consunmption(kwh)={Truck edge cost(km), Truck energy consumption(kwh/km), Drone edge cost(km), Drone energy consumption(kwh/km)}
+        TO DO: 이후에 logistic_load 등의 데이터 등을 추가로 활용하여 energy_consumption 모델링 확장 필요
+        """
+        divided_routes = apply_dividing_route_to_routes(self.routes)
+        
+        energy_consumption = 0.0
+
+        for route_info in divided_routes:
+            vtype = route_info['vtype']
+            path = route_info['path']
+
+            if vtype == 'truck':
+                for i in range(len(path) - 1):
+                    loc_from = path[i][0] if isinstance(path[i], tuple) else path[i]
+                    loc_to = path[i+1][0] if isinstance(path[i+1], tuple) else path[i+1]
+
+                    edge_weight = data["edge_km_t"][loc_from][loc_to]
+                    energy_consumption += edge_weight * data["energy_kwh/km_t"]
+
+
+            elif vtype == 'drone': #드론은 1(fly)부터 3(catch)까지만의 edge를 반복적으로 고려해준다는 알고리즘
+                flag = 0
+                for j in range(len(path)):
+                    if flag == 0 and path[j][1] == 1:
+                        start_index = j
+                        flag = 1
+                    elif path[j][1] == 3 and flag == 1:
+                        for k in range(start_index, j):
+                            edge_weight = data["edge_km_d"][path[k][0]][path[k+1][0]]
+                            energy_consumption += edge_weight * data["energy_kwh/km_d"]
+                        flag=0
+
+        return energy_consumption
     
-    def function():
-        return True,False
-"""
+    def objective_time_penalty(self):
+        """
+        energy_consumption + waiting time penalty
+        """
+        divided_routes = apply_dividing_route_to_routes(self.routes)
+        truck_time_cost = 0.0
+        drone_time_cost = 0.0
 
-Rep = Repair()
-destroyer = Destroy()
-plotter = SolutionPlotter(data)
+        for route_info in divided_routes:
+            vtype = route_info['vtype']
+            path = route_info['path']
+            route_info['time'] = []
 
-#ALNS MAIN CODE
-alns = ALNS(rnd.RandomState(SEED))
-alns.add_destroy_operator(destroyer.random_removal)
-alns.add_repair_operator(Rep.drone_first_truck_second)
+            if vtype == 'truck':
+                for j in range(len(path)):
+                    if path[j][1] == 1:
+                        start_index = j
+                    elif path[j][1] == 3 and start_index is not None:
+                        for k in range(start_index, j):
+                            time_cost = data["edge_km_t"][path[k][0]][path[k+1][0]]
+                            truck_time_cost += time_cost / data["speed_t"]
+                        start_index = None
+                        route_info['time'].append(truck_time_cost)
+                        truck_time_cost = 0.0
 
 
-init = initializer.makemakemake(initial_solution)
+            elif vtype == 'drone': 
+                start_index = None
+                flag = 0
+                for j in range(len(path)):
+                    if flag == 0 and path[j][1] == 1:
+                        start_index = j
+                        flag = 1
+                    elif path[j][1] == 3 and start_index is not None:
+                        for k in range(start_index, j):
+                            time_cost = data["edge_km_d"][path[k][0]][path[k+1][0]]
+                            drone_time_cost += time_cost / data["speed_d"]
+                        flag = 0
+                        start_index = None
+                        route_info['time'].append(drone_time_cost)
+                        drone_time_cost = 0.0
 
-select = RouletteWheel(scores=[25, 0, 0, 0],
-                       decay=0.8,
-                       num_destroy=1,
-                       num_repair=1)
-accept = SimulatedAnnealing(start_temperature=1000,
-                            end_temperature=0.01,
-                            step=0.1,
-                            method="exponential")
-stop = MaxIterations(5000) #iteration을 5000번 까지 수행하도록 설정
+        grouped_paths = {k: [item['time'] for item in g] for k, g in groupby(divided_routes, key=lambda x: x['vid'])}
 
-result = alns.iterate(init, select, accept, stop)
+        waiting_time = {k: [abs(x - y) for x, y in zip(*v)] for k, v in grouped_paths.items() if len(v) == 2}
 
-solution = result.best_state
-objective = solution.object_total_time() #objective 갈아끼우려면 plotter와 repair에 insert_cost 변경
-pct_diff = -(100 * (objective - 7) / 7) #일단 우리는 best_known_solution을 정확히 모르니까, initial cost를 7로 설정
+        total_sum = sum(sum(values) for values in waiting_time.values())
 
-plotter.plot_current_solution(solution, 'Simple ALNS')
-print("\nALNS's : ",solution)
+        return total_sum
+    
+    def object_total_time(self):
+        total_time_of_routes = []
+        waiting_time_of_routes = []
+        for route in self.routes:
+            total_time = 0
+            drone_time = 0
+            truck_time = 0
+            waiting_time = 0
+            flag = 0
+            drone_distance = 0
+            truck_distance = 0
+            for i in range(len(route)-1):
+                if route[i][1] == IDLE or None:
+                    total_time += (data["edge_km_t"][route[i][0]][route[i+1][0]])/data["speed_t"]
+                
+                elif flag == 0 and route[i][1] == FLY:
+                    start_index = i
+                    flag = 1
+                    j = i + 1
+                    while flag == 1 and j < len(route):
+                        if route[j][1] == FLY:
+                            flag = 0
+                            end_index = j
+                        elif route[j][1] == CATCH:
+                            flag = 0
+                            end_index = j
+                        else:
+                            flag = 1
+                        j += 1
 
-print(f"Best heuristic objective is {objective}.")
-print(f"This is {pct_diff:.1f}%  better than the initial solution, which is 7.")
+                    # 이 start_index와 end_index 사이의 drone_path와 truck_path를 추출하고, 각 subroute의 소요시간 계산
+                    drone_path = [value for value in route[start_index:end_index + 1] if value[1] != ONLY_TRUCK]  
+                    truck_path = [value for value in route[start_index:end_index + 1] if value[1] != ONLY_DRONE]  
 
-_, ax = plt.subplots(figsize=(12, 6))
-result.plot_objectives(ax=ax)
-ax.set_xlim(right=5000)  # x 축 범위를 5000으로 제한
-ax.set_xticks(np.arange(0, 5001, 100))  # x 축의 눈금을 0부터 5000까지 100 간격으로 설정
-plt.tight_layout()
-plt.show()
+                    ##  end_index + 1 assert 필요
+                    
+                    for l in range(len(drone_path)-1):
+                        drone_distance += data["edge_km_t"][drone_path[l][0]][drone_path[l+1][0]]
+                        
+                    for m in range(len(truck_path)-1):    
+                        truck_distance += data["edge_km_d"][truck_path[m][0]][truck_path[m+1][0]]        
+                    
+                    drone_time = drone_distance / data["speed_d"] + (len(drone_path)-2)*data["service_time"]
+                    truck_time = truck_distance / data["speed_t"] + (len(truck_path)-1)*data["service_time"]
+                    
+                    if drone_time >= truck_time:
+                        total_time += drone_time
+                        waiting_time += (drone_time - truck_time)
+                    else:
+                        total_time += truck_time
+                        waiting_time += (truck_time - drone_time)
+                    
+                    drone_time = 0
+                    truck_time = 0
+                elif route[i][1] == CATCH:
+                    total_time += (data["edge_km_t"][route[i][0]][route[i+1][0]])/data["speed_t"]
+            total_time_of_routes.append(total_time)
+            waiting_time_of_routes.append(waiting_time)
+        return sum(total_time_of_routes) + sum(waiting_time_of_routes)
 
-result.plot_operator_counts()
-plt.show()
+    
+    @property
+    def cost(self):
+        """
+        Alias for objective method. Used for plotting.
+        """
+        return self.objective()
+    
+
+    def find_route(self, customer):
+       
+        for route in self.routes['route']:
+            if customer in route['path']:
+                return route
+            
+        raise ValueError(f"Solution does not contain customer {customer}.")
+    
