@@ -92,7 +92,6 @@ class MultiModalState:
         energy_consumption + waiting time penalty
         """
         divided_routes = apply_dividing_route_to_routes(self.routes)
-        energy_consumption = 0.0
         truck_time_cost = 0.0
         drone_time_cost = 0.0
 
@@ -102,14 +101,6 @@ class MultiModalState:
             route_info['time'] = []
 
             if vtype == 'truck':
-                #에너지
-                for i in range(len(path) - 1):
-                    loc_from = path[i][0] if isinstance(path[i], tuple) else path[i]
-                    loc_to = path[i+1][0] if isinstance(path[i+1], tuple) else path[i+1]
-
-                    edge_weight = data["edge_km_t"][loc_from][loc_to]
-                    energy_consumption += edge_weight * data["energy_kwh/km_t"]
-                #시간
                 for j in range(len(path)):
                     if path[j][1] == 1:
                         start_index = j
@@ -131,10 +122,6 @@ class MultiModalState:
                         flag = 1
                     elif path[j][1] == 3 and start_index is not None:
                         for k in range(start_index, j):
-                            #에너지
-                            edge_weight = data["edge_km_d"][path[k][0]][path[k+1][0]]
-                            energy_consumption += edge_weight * data["energy_kwh/km_d"]
-                            #시간
                             time_cost = data["edge_km_d"][path[k][0]][path[k+1][0]]
                             drone_time_cost += time_cost / data["speed_d"]
                         flag = 0
@@ -148,7 +135,7 @@ class MultiModalState:
 
         total_sum = sum(sum(values) for values in waiting_time.values())
 
-        return energy_consumption + total_sum
+        return total_sum
     
     @property
     def cost(self):
