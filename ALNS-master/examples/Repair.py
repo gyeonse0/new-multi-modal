@@ -76,7 +76,9 @@ class Repair():
                             if route == [(0, 0), (0, 0)]:
                                 # 빈 route에 고객 추가
                                 routes[i] = [(0, 0), (customer[0],0), (0, 0)]
-                
+                                
+                routes = [route for route in routes if route != [(0, 0), (0, 0)]]
+            
         self.truck_repair_visit_type_update(routes) #최종적으로 visit_type 검사
         self.route_duplication_check(routes)
 
@@ -116,26 +118,27 @@ class Repair():
         new_route = route[:idx] + [customer] + route[idx:]
         self.drone_repair_visit_type_update_route(new_route)
         
-        check_route = [value for value in new_route if value[1] != 4] #드론의 경로만을 고려
+        drone_path = [value for value in new_route if value[1] != ONLY_TRUCK]  
+        truck_path = [value for value in new_route if value[1] != ONLY_DRONE]
         
         flag = 0
         total_load = 0
         
-        for i in range(0,len(check_route)):
-            if flag == 0 and check_route[i][1] == ONLY_DRONE:
+        for i in range(0,len(drone_path)):
+            if flag == 0 and drone_path[i][1] == ONLY_DRONE:
                 start_index = i
                 flag = 1
                 j = i + 1
-                while flag == 1 and j < len(check_route):
-                    if check_route[j][1] == ONLY_DRONE:
+                while flag == 1 and j < len(drone_path):
+                    if drone_path[j][1] == ONLY_DRONE:
                         flag = 1
-                    elif check_route[j][1] != ONLY_DRONE:
+                    elif drone_path[j][1] != ONLY_DRONE:
                         flag = 0
                         end_index = j - 1
                     j += 1
                     
                 for k in range(start_index, end_index + 1):
-                    total_load += data["logistic_load"][check_route[k][0]]
+                    total_load += data["logistic_load"][drone_path[k][0]]
                 if total_load > data["cargo_limit_drone"]:
                     return False
                 total_load = 0
@@ -164,15 +167,11 @@ class Repair():
                         flag = 1
                     j += 1
                 
-                for k in range(start_index, end_index + 1):  
-                    drone_path = [value for value in new_route if value[1] != ONLY_TRUCK]  
-                    truck_path = [value for value in new_route if value[1] != ONLY_DRONE]
-                
                 for l in range(len(drone_path)-1):
-                    drone_distance += data["edge_km_t"][drone_path[l][0]][drone_path[l+1][0]]
+                    drone_distance += data["edge_km_d"][drone_path[l][0]][drone_path[l+1][0]]
                     
                 for m in range(len(truck_path)-1):    
-                    truck_distance += data["edge_km_d"][truck_path[m][0]][truck_path[m+1][0]]        
+                    truck_distance += data["edge_km_t"][truck_path[m][0]][truck_path[m+1][0]]        
                 
                 drone_time = drone_distance / data["speed_d"] + (len(drone_path)-2)*data["service_time"]
                 truck_time = truck_distance / data["speed_t"] + (len(truck_path)-1)*data["service_time"] #트럭은 fly 해주고 service 시작함
@@ -247,8 +246,50 @@ class Repair():
         if total_demand > data["capacity_t"]:
             return False
         
+        #에너지 충전 및 소모로 인한 배터리 잔량에 대해 고려(드론의 ONE path로 고려(0,1,2,3 만 존재))
+        drone_current_kwh = data["battery_kwh_d"]
+        flag = 0
+        for i in range(len(drone_path)):
+            if drone_path[i][1] == IDLE: #배터리 충전 계산
+                drone_idle_distance = 0
+                start_index = i
+                j = i + 1
+                while j < len(drone_path):
+                    if drone_path[j][1] != IDLE:
+                        end_index = j
+                    j += 1
+                    
+                for k in range(start_index,end_index-1):
+                    drone_idle_distance += data["edge_km_d"][drone_path[k][0]][drone_path[k+1][0]]
+                drone_idle_time = drone_idle_distance / data["speed_d"]
+                    
+                if drone_current_kwh < data["battery_kwh_d"]:
+                    drone_current_kwh += (data["charging_kw_d"]/60) * drone_idle_time #우리는 시간이 분이니까 KW애 나누기60
+                    if drone_current_kwh > data["battery_kwh_d"]:
+                        drone_current_kwh = data["battery_kwh_d"] #충전해도 최대 배터리 양은 넘을 수 없음
                 
+                
+            elif drone_path[i][1] == FLY: #배터리 소모 계산
+                start_index = i
+                j = i + 1
+                while j < len(drone_path):
+                    if drone_path[j][1] == CATCH:
+                        end_index = j
+                    j += 1
+                    
+                for k in range(start_index,end_index-1):
+                    drone_distance += data["edge_km_d"][drone_path[k][0]][drone_path[k+1][0]]
+                
+                energy_consumption = drone_distance * data["energy_kwh/km_d"]
+                drone_current_kwh -= energy_consumption
+                
+                if drone_current_kwh < data["battery_kwh_d"] * 0.05: #총 배터리의 5퍼센트 이상이 유지되어야 FLY
+                    return False
+
         return True
+    
+        
+        
 
 
 
