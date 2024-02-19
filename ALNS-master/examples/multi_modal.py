@@ -50,13 +50,13 @@ plotter = SolutionPlotter(data)
 ### Destroy 클래스 debugging code
 destroyer = Destroy()
 destroyed_route1 = destroyer.random_removal(current_route,rnd_state)
-#print("\nrandom removal's", destroyed_route1)
+##print("\nrandom removal's", destroyed_route1)
 ### Destroy 플러팅 시각화 debugging code
 #plotter.plot_current_solution(destroyed_route1,name="Random Removal1")
 
 ### Repair 클래스 debugging code
 Rep = Repair()
-repaired_route1 = Rep.greedy_drone_repair(destroyed_route1,rnd_state) # greedy_drone_repair로 변경가능
+repaired_route1 = Rep.drone_first_truck_second(destroyed_route1,rnd_state) # greedy_drone_repair로 변경가능
 #print("\nRepair's", repaired_route1)
 ### Repair 플러팅 시각화 debugging code
 #plotter.plot_current_solution(repaired_route1,name="drone Repair1")
@@ -66,7 +66,7 @@ destroyed_route2 = destroyer.random_removal(repaired_route1,rnd_state)
 ### Destroy 플러팅 시각화 debugging code
 #plotter.plot_current_solution(destroyed_route2,name="Random Removal2")
 
-repaired_route2 = Rep.greedy_drone_repair(destroyed_route2,rnd_state) # greedy_drone_repair로 변경가능
+repaired_route2 = Rep.drone_first_truck_second(destroyed_route2,rnd_state) # greedy_drone_repair로 변경가능
 #print("\nRepair's", repaired_route2)
 ### Repair 플러팅 시각화 debugging code
 #plotter.plot_current_solution(repaired_route2,name="drone Repair2")
@@ -85,10 +85,9 @@ destroyer = Destroy()
 plotter = SolutionPlotter(data)
 
 #ALNS MAIN CODE
-alns = ALNS(rnd.RandomState(None))
+alns = ALNS(rnd.RandomState(SEED))
 alns.add_destroy_operator(destroyer.random_removal)
-alns.add_repair_operator(Rep.greedy_drone_repair)
-alns.add_repair_operator(Rep.greedy_truck_repair)
+alns.add_repair_operator(Rep.drone_first_truck_second)
 
 
 init = initializer.makemakemake(initial_solution)
@@ -96,17 +95,17 @@ init = initializer.makemakemake(initial_solution)
 select = RouletteWheel(scores=[25, 0, 0, 0],
                        decay=0.8,
                        num_destroy=1,
-                       num_repair=2)
+                       num_repair=1)
 accept = SimulatedAnnealing(start_temperature=1000,
                             end_temperature=0.01,
                             step=0.1,
                             method="exponential")
-stop = MaxIterations(3000) #iteration을 1000번 까지 수행하도록 설정
+stop = MaxIterations(5000) #iteration을 5000번 까지 수행하도록 설정
 
 result = alns.iterate(init, select, accept, stop)
 
 solution = result.best_state
-objective = solution.objective() #objective_time_penalty로 갈아끼우려면 plotter와 repair에 insert_cost 변경
+objective = solution.objective() #objective 갈아끼우려면 plotter와 repair에 insert_cost 변경
 pct_diff = -(100 * (objective - 7) / 7) #일단 우리는 best_known_solution을 정확히 모르니까, initial cost를 7로 설정
 
 plotter.plot_current_solution(solution, 'Simple ALNS')
@@ -117,8 +116,8 @@ print(f"This is {pct_diff:.1f}%  better than the initial solution, which is 7.")
 
 _, ax = plt.subplots(figsize=(12, 6))
 result.plot_objectives(ax=ax)
-ax.set_xlim(right=3000)  # x 축 범위를 3000으로 제한
-ax.set_xticks(np.arange(0, 3001, 100))  # x 축의 눈금을 0부터 3000까지 100 간격으로 설정
+ax.set_xlim(right=5000)  # x 축 범위를 5000으로 제한
+ax.set_xticks(np.arange(0, 5001, 100))  # x 축의 눈금을 0부터 5000까지 100 간격으로 설정
 plt.tight_layout()
 plt.show()
 
