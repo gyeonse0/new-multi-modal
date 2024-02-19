@@ -26,6 +26,45 @@ class Repair():
 
     아직 can_insert (feasibility) 고려안하고 무조건 TRUE인 상태
     """
+
+    def heavy_insertion_repair(self, state, rnd_state):
+        heavy_first_repair = MultiModalState(state.routes, state.unassigned)
+        routes = heavy_first_repair.routes
+        unassigned = heavy_first_repair.unassigned
+        condition = lambda x: data["logistic_load"][x[0]] > data["cargo_limit_drone"] 
+        
+        unassigned_heavy, unassigned = self.extract_and_remain(unassigned, condition)
+
+        while len(unassigned_heavy) > 0:
+            customer_heavy = random.choice(unassigned_heavy)
+            unassigned_heavy.remove(customer_heavy)
+            best_route, best_idx = self.truck_best_insert(customer_heavy, routes)
+                
+            if best_route is not None and best_idx is not None:
+                for i, route in enumerate(routes):
+                    if route == best_route:
+                        routes[i] = route[:best_idx] + [customer_heavy] + route[best_idx:]
+                        self.truck_repair_visit_type_update(routes)
+            else:
+                # routes에 [(0, 0), (0, 0)]이 없으면
+                if not any(route == [(0, 0), (0, 0)] for route in routes):
+                    # routes 뒤에 새로운 route 추가
+                    routes.append([(0, 0), customer_heavy, (0, 0)])
+                else:
+                    for i, route in enumerate(routes):
+                        if route == [(0, 0), (0, 0)]:
+                            # 빈 route에 고객 추가
+                            routes[i] = [(0, 0), (customer_heavy[0],0), (0, 0)]
+
+        self.truck_repair_visit_type_update(routes) #최종적으로 visit_type 검사
+        self.route_duplication_check(routes)
+
+        state_after_heavy_repair = MultiModalState(routes, unassigned)
+        
+        if len(state_after_heavy_repair.unassigned) > 0:
+            return self.drone_first_truck_second(state_after_heavy_repair, rnd_state)
+        else:
+            return MultiModalState(routes, unassigned)
     
     def drone_first_truck_second(self, state, rnd_state):
         """
@@ -581,3 +620,14 @@ class Repair():
                     routes[j] = [(0, 0), (0, 0)]
     
         return routes
+        
+    def extract_and_remain(self, original_list, condition):
+        # 새로운 리스트 추출
+        new_list = [x for x in original_list if condition(x)]
+        
+        # 추출한 요소를 제외한 리스트 유지
+        remaining_list = [x for x in original_list if x not in new_list]
+        
+        # 결과 반환
+        return new_list, remaining_list
+
