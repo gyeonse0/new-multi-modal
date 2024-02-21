@@ -12,14 +12,13 @@ from itertools import groupby
 from RouteGenerator import *
 from FileReader import *
 
-vrp_file_path = r'C:\Users\these\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.vrp'
-sol_file_path = r'C:\Users\these\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.sol'
+vrp_file_path = r'C:\Users\User\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.vrp'
+sol_file_path = r'C:\Users\User\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.sol'
 
 file_reader = FileReader()
 data = file_reader.read_vrp_file(vrp_file_path)
 bks = file_reader.read_sol_file(sol_file_path)
 
-globals
 IDLE = 0 # 해당 노드에 드론이 트럭에 업힌 상태의 경우
 FLY = 1 # 해당 노드에서 트럭이 드론의 임무를 위해 드론을 날려주는 경우
 ONLY_DRONE = 2 # 해당 노드에 드론만이 임무를 수행하는 서비스 노드인 경우
@@ -100,6 +99,7 @@ class MultiModalState:
         """
         divided_routes = apply_dividing_route_to_routes(self.routes)
         truck_time_cost = 0.0
+        truck_total_time = 0.0
         drone_time_cost = 0.0
 
         for route_info in divided_routes:
@@ -108,6 +108,12 @@ class MultiModalState:
             route_info['time'] = []
 
             if vtype == 'truck':
+                for i in range(len(path) - 1):
+                    loc_from = path[i][0] if isinstance(path[i], tuple) else path[i]
+                    loc_to = path[i+1][0] if isinstance(path[i+1], tuple) else path[i+1]
+
+                    edge_weight = data["edge_km_t"][loc_from][loc_to]
+                    truck_total_time += edge_weight / data["speed_t"]
                 for j in range(len(path)):
                     if path[j][1] == 1:
                         start_index = j
@@ -144,7 +150,7 @@ class MultiModalState:
 
         return total_sum
     
-    def object_total_time(self):
+    def object_total_timee(self):
         total_time_of_routes = []
         waiting_time_of_routes = []
         for route in self.routes:
@@ -203,8 +209,86 @@ class MultiModalState:
             total_time_of_routes.append(total_time)
             waiting_time_of_routes.append(waiting_time)
         return sum(total_time_of_routes) + sum(waiting_time_of_routes)
-
     
+    def objective_total_time(self):
+        alpha = 1
+        total_time_of_routes = []   # list of list
+        waiting_time_of_routes = [] # list of list
+        for route in self.routes:
+            total_time_list, waiting_time_list = self.calculate_time_per_route(route)
+            total_time_of_routes.append(total_time_list)
+            waiting_time_of_routes.append(waiting_time_list)
+        return sum(sum(sublist) for sublist in total_time_of_routes) + alpha * sum(sum(sublist) for sublist in waiting_time_of_routes)
+    
+    def calculate_time_per_route(self, route):
+        total_time = 0
+        total_time_list = [0] * len(route)
+        drone_time = 0
+        truck_time = 0
+        waiting_time = 0
+        waiting_time_list = []
+        flag = 0
+        drone_distance = 0
+        truck_distance = 0
+        for i in range(len(route)-1):
+            if route[i][1] == IDLE or None:
+                total_time += (data["edge_km_t"][route[i][0]][route[i+1][0]])/data["speed_t"]
+                total_time_list[i+1] = total_time
+
+            elif flag == 0 and route[i][1] == FLY:
+                # FLY로 시작하는 index를 발견한다면 end_index까지 찾고 드론, 트럭 각각의 time_cost 계산
+                start_index = i
+                flag = 1
+                j = i + 1
+                while flag == 1 and j < len(route):
+                    if route[j][1] == FLY:
+                        flag = 0
+                        end_index = j
+                    elif route[j][1] == CATCH:
+                        flag = 0
+                        end_index = j
+                    else:
+                        flag = 1
+                    j += 1
+                # end_index 발견
+
+                # start_index와 end_index 사이의 drone_path와 truck_path를 추출
+                drone_path = [value for value in route[start_index:end_index + 1] if value[1] != ONLY_TRUCK]  
+                truck_path = [value for value in route[start_index:end_index + 1] if value[1] != ONLY_DRONE]  
+
+                ##  end_index + 1 assert 필요
+                
+                # 각 subroute의 소요시간 계산
+                for l in range(len(drone_path)-1):
+                    drone_distance += data["edge_km_t"][drone_path[l][0]][drone_path[l+1][0]]
+                    
+                for m in range(len(truck_path)-1):    
+                    truck_distance += data["edge_km_d"][truck_path[m][0]][truck_path[m+1][0]]        
+                
+                drone_time = drone_distance / data["speed_d"] + (len(drone_path)-2)*data["service_time"]
+                truck_time = truck_distance / data["speed_t"] + (len(truck_path)-1)*data["service_time"]
+                
+                if drone_time >= truck_time:
+                    total_time += drone_time
+                    waiting_time += (drone_time - truck_time)
+                else:
+                    total_time += truck_time
+                    waiting_time += (truck_time - drone_time)
+                
+                waiting_time_list.append(waiting_time)
+                waiting_time = 0
+                drone_time = 0
+                truck_time = 0
+
+                total_time_list[end_index] = total_time
+                # 아직 중간 사이사이 index는 꽁임
+
+            elif route[i][1] == CATCH:
+                total_time += (data["edge_km_t"][route[i][0]][route[i+1][0]])/data["speed_t"]
+                total_time_list[i+1] = total_time
+
+        return total_time_list, waiting_time_list
+
     @property
     def cost(self):
         """
