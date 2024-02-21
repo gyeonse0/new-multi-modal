@@ -6,8 +6,9 @@ import random
 
 file_reader = FileReader()
 
-vrp_file_path = r'C:\Users\82102\Desktop\ALNS-master\examples\data\multi_modal_data.vrp'
-sol_file_path = r'C:\Users\82102\Desktop\ALNS-master\examples\data\multi_modal_data.sol'
+vrp_file_path = r'C:\Users\User\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.vrp'
+sol_file_path = r'C:\Users\User\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.sol'
+
 
 data = file_reader.read_vrp_file(vrp_file_path)
 
@@ -26,7 +27,6 @@ class Repair():
 
     아직 can_insert (feasibility) 고려안하고 무조건 TRUE인 상태
     """
-
     def heavy_insertion_repair(self, state, rnd_state):
         heavy_first_repair = MultiModalState(state.routes, state.unassigned)
         routes = heavy_first_repair.routes
@@ -65,16 +65,146 @@ class Repair():
             return self.drone_first_truck_second(state_after_heavy_repair, rnd_state)
         else:
             return MultiModalState(routes, unassigned)
-    
+
     def drone_first_truck_second(self, state, rnd_state):
         """
         drone repair operator 함수
         greedy_drone_repair : depot뒤 ~ depot앞 idx에 unassigned 노드를 ''ONLY_DRONE''으로 끼워보고 best한 cost 발생시키는 routes 반환
         """
-        repairss = MultiModalState(state.routes,state.unassigned)
-        routes = repairss.routes
-        unassigned = repairss.unassigned
+        # repairs = MultiModalState(state.routes, state.unassigned)
+        # routes = repairs.routes
+        # unassigned = repairs.unassigned
         
+        # while len(unassigned) > 0:
+        #     customer = random.choice(unassigned)
+        #     unassigned.remove(customer)
+        #     best_route, best_idx = self.drone_best_insert(customer, routes)    
+            
+        #     if best_route is not None and best_idx is not None:
+        #         for i, route in enumerate(routes):
+        #             if route == best_route:
+        #                 routes[i] = route[:best_idx] + [customer] + route[best_idx:]
+        #                 self.drone_repair_visit_type_update(routes)
+                                        
+        # self.drone_repair_visit_type_update(routes) #최종적으로 visit_type 검사
+        # self.route_duplication_check(routes)
+        
+        # state_after_drone_repair = MultiModalState(routes, unassigned)
+
+        state_after_drone_repair = self.greedy_drone_repair(MultiModalState(state.routes, state.unassigned), rnd_state)
+        if len(state_after_drone_repair.unassigned) > 0:
+            return self.greedy_truck_repair(state_after_drone_repair, rnd_state)
+        else:
+            return state_after_drone_repair
+    
+        # if len(state_after_drone_repair.unassigned)>0:
+        #     routes = state_after_drone_repair.routes
+        #     unassigned = state_after_drone_repair.unassigned
+        #     while len(unassigned) > 0:
+        #         customer = random.choice(unassigned)
+        #         unassigned.remove(customer)
+        #         best_route, best_idx = self.truck_best_insert(customer, routes)
+                
+        #         if best_route is not None and best_idx is not None:
+        #             for i, route in enumerate(routes):
+        #                 if route == best_route:
+        #                     routes[i] = route[:best_idx] + [customer] + route[best_idx:]
+        #                     self.truck_repair_visit_type_update(routes)
+                
+        #         else:
+        #             # routes에 [(0, 0), (0, 0)]이 없으면
+        #             if not any(route == [(0, 0), (0, 0)] for route in routes):
+        #                 # routes 뒤에 새로운 route 추가
+        #                 routes.append([(0, 0), customer, (0, 0)])
+        #             else:
+        #                 for i, route in enumerate(routes):
+        #                     if route == [(0, 0), (0, 0)]:
+        #                         # 빈 route에 고객 추가
+        #                         routes[i] = [(0, 0), (customer[0],0), (0, 0)]
+                                
+        #         routes = [route for route in routes if route != [(0, 0), (0, 0)]]
+            
+        # self.truck_repair_visit_type_update(routes) #최종적으로 visit_type 검사
+        # self.route_duplication_check(routes)
+
+        # return MultiModalState(routes, unassigned)
+    
+    def truck_first_drone_second(self, state, rnd_state):
+        state_after_truck_repair = self.greedy_truck_repair(MultiModalState(state.routes, state.unassigned), rnd_state)
+        routes = state_after_truck_repair.routes
+        unassigned = state_after_truck_repair.unassigned
+        """여기에 아래처럼 while로 들어가지 않고
+        greedy하게 full state에 드론 넣어주는 함수를 제작해줘야할듯
+
+        Returns:
+            _type_: _description_
+        """
+        while len(unassigned) > 0:
+            customer = random.choice(unassigned)
+            unassigned.remove(customer)
+            best_route, best_idx = self.drone_best_insert(customer, routes)
+            
+            if best_route is not None and best_idx is not None:
+                for i, route in enumerate(routes):
+                    if route == best_route:
+                        routes[i] = route[:best_idx] + [customer] + route[best_idx:]
+                        self.drone_repair_visit_type_update(routes)
+            else:
+                # routes에 [(0, 0), (0, 0)]이 없으면
+                if not any(route == [(0, 0), (0, 0)] for route in routes):
+                    # routes 뒤에 새로운 route 추가
+                    routes.append([(0, 0), customer, (0, 0)])
+                else:
+                    for i, route in enumerate(routes):
+                        if route == [(0, 0), (0, 0)]:
+                            # 빈 route에 고객 추가
+                            routes[i] = [(0, 0), (customer[0],0), (0, 0)]
+                            
+            routes = [route for route in routes if route != [(0, 0), (0, 0)]]
+                                        
+        self.drone_repair_visit_type_update(routes) #최종적으로 visit_type 검사
+        self.route_duplication_check(routes)
+        
+        return MultiModalState(routes, unassigned)
+        
+    def greedy_truck_repair(self, state, rnd_state):
+        truck_repair = MultiModalState(state.routes, state.unassigned)
+        routes = truck_repair.routes
+        unassigned = truck_repair.unassigned
+
+        while len(unassigned) > 0:
+            customer = random.choice(unassigned)
+            unassigned.remove(customer)
+            best_route, best_idx = self.truck_best_insert(customer, routes)
+
+            if best_route is not None and best_idx is not None:
+                for i, route in enumerate(routes):
+                    if route == best_route:
+                        routes[i] = route[:best_idx] + [customer] + route[best_idx:]
+                        self.truck_repair_visit_type_update(routes)
+            else:
+                # routes에 [(0, 0), (0, 0)]이 없으면
+                if not any(route == [(0, 0), (0, 0)] for route in routes):
+                    # routes 뒤에 새로운 route 추가
+                    routes.append([(0, 0), customer, (0, 0)])
+                else:
+                    for i, route in enumerate(routes):
+                        if route == [(0, 0), (0, 0)]:
+                            # 빈 route에 고객 추가
+                            routes[i] = [(0, 0), (customer[0],0), (0, 0)]
+                            
+            routes = [route for route in routes if route != [(0, 0), (0, 0)]]
+
+        self.truck_repair_visit_type_update(routes) #최종적으로 visit_type 검사
+        self.route_duplication_check(routes)
+
+        return MultiModalState(routes, unassigned)
+    
+    def greedy_drone_repair(self, state, rnd_state):
+        drone_repair = MultiModalState(state.routes, state.unassigned)
+        routes = drone_repair.routes
+        unassigned = drone_repair.unassigned
+
         while len(unassigned) > 0:
             customer = random.choice(unassigned)
             unassigned.remove(customer)
@@ -88,42 +218,8 @@ class Repair():
                                         
         self.drone_repair_visit_type_update(routes) #최종적으로 visit_type 검사
         self.route_duplication_check(routes)
-        
-        state_after_drone_repair = MultiModalState(routes, unassigned)
-        
-        if len(state_after_drone_repair.unassigned)>0:
-            routes = state_after_drone_repair.routes
-            unassigned = state_after_drone_repair.unassigned
-            while len(unassigned) > 0:
-                customer = random.choice(unassigned)
-                unassigned.remove(customer)
-                best_route, best_idx = self.truck_best_insert(customer, routes)
-                
-                if best_route is not None and best_idx is not None:
-                    for i, route in enumerate(routes):
-                        if route == best_route:
-                            routes[i] = route[:best_idx] + [customer] + route[best_idx:]
-                            self.truck_repair_visit_type_update(routes)
-                
-                else:
-                    # routes에 [(0, 0), (0, 0)]이 없으면
-                    if not any(route == [(0, 0), (0, 0)] for route in routes):
-                        # routes 뒤에 새로운 route 추가
-                        routes.append([(0, 0), customer, (0, 0)])
-                    else:
-                        for i, route in enumerate(routes):
-                            if route == [(0, 0), (0, 0)]:
-                                # 빈 route에 고객 추가
-                                routes[i] = [(0, 0), (customer[0],0), (0, 0)]
-                                
-                routes = [route for route in routes if route != [(0, 0), (0, 0)]]
-            
-        self.truck_repair_visit_type_update(routes) #최종적으로 visit_type 검사
-        self.route_duplication_check(routes)
 
         return MultiModalState(routes, unassigned)
-        
-        
     
     def drone_best_insert(self, customer, routes):
         """
@@ -141,7 +237,27 @@ class Repair():
 
         return best_route, best_idx
 
-    
+    def drone_randomize_greedy_insert(self, customer, routes):
+        best_costs = [None, None, None]
+        best_routes = [None, None, None]
+        best_idxs = [None, None, None]
+
+        for route in routes:
+            for idx in range(1, len(route)):
+                if self.drone_can_insert(data, customer, route, idx):  # 삽입 가능한 경우
+                    cost = self.drone_insert_cost(customer, route, idx, routes)
+
+                    for i in range(3):
+                        if best_costs[i] is None or cost < best_costs[i]:
+                            best_costs.insert(i, cost)
+                            best_routes.insert(i, route)
+                            best_idxs.insert(i, idx)
+                            break
+
+        # Randomly select one of the top three costs
+        selected_index = random.randint(0, 2)
+
+        return best_routes[selected_index], best_idxs[selected_index]
         
     def drone_can_insert(self, data, customer, route, idx): 
         
@@ -153,16 +269,15 @@ class Repair():
         if data["customer_drone_preference"][customer[0]] == 0:
             return False
         
-        # 해당 고객들의 logistic_load가 cargo_limit_drone을 넘으면 False
         new_route = route[:idx] + [customer] + route[idx:]
         self.drone_repair_visit_type_update_route(new_route)
         
         drone_path = [value for value in new_route if value[1] != ONLY_TRUCK]  
         truck_path = [value for value in new_route if value[1] != ONLY_DRONE]
-        
+
+        # 해당 고객들의 logistic_load가 cargo_limit_drone을 넘으면 False
         flag = 0
         total_load = 0
-        
         for i in range(0,len(drone_path)):
             if flag == 0 and drone_path[i][1] == ONLY_DRONE:
                 start_index = i
@@ -181,114 +296,23 @@ class Repair():
                 if total_load > data["cargo_limit_drone"]:
                     return False
                 total_load = 0
-        
-        # max waiting time 넘으면 false
-        drone_time = 0
-        truck_time = 0
-        waiting_time = 0
-        drone_distance = 0
-        truck_distance = 0
-        flag = 0 
-        
-        for i in range(len(new_route)):
-            if flag == 0 and new_route[i][1] == FLY:
-                start_index = i
-                flag = 1
-                j = i + 1
-                while flag == 1 and j < len(new_route):
-                    if new_route[j][1] == FLY:
-                        flag = 0
-                        end_index = j
-                    elif new_route[j][1] == CATCH:
-                        flag = 0
-                        end_index = j
-                    else:
-                        flag = 1
-                    j += 1
-                
-                for l in range(len(drone_path)-1):
-                    drone_distance += data["edge_km_d"][drone_path[l][0]][drone_path[l+1][0]]
-                    
-                for m in range(len(truck_path)-1):    
-                    truck_distance += data["edge_km_t"][truck_path[m][0]][truck_path[m+1][0]]        
-                
-                drone_time = drone_distance / data["speed_d"] + (len(drone_path)-2)*data["service_time"]
-                truck_time = truck_distance / data["speed_t"] + (len(truck_path)-1)*data["service_time"] #트럭은 fly 해주고 service 시작함
-                
-                if drone_time >= truck_time:
-                    waiting_time = drone_time - truck_time
-                else:
-                    waiting_time = truck_time - drone_time
-                    
-                if waiting_time > data["max_waiting_time"]: #단위는 min
-                    return False
-                
-                drone_time = 0
-                truck_time = 0
-                waiting_time = 0
-                drone_distance = 0
-                truck_distance = 0
 
-        # 최종적으로 Depot에 도착했을 때 total_time이 time limit 보다 크면 False
-        # visit_type이 idle이면 그냥 트럭시간으로 더해주고, 1 2 4 3 일때는 그안에서 트럭과 드론 중 큰 거로 계산 
-        total_time = 0
-        drone_time = 0
-        truck_time = 0
-        for i in range(len(new_route)-1):
-            if new_route[i][1] == IDLE or None:
-                total_time += (data["edge_km_t"][new_route[i][0]][new_route[i+1][0]])/data["speed_t"]
-            
-            elif flag == 0 and new_route[i][1] == FLY:
-                start_index = i
-                flag = 1
-                j = i + 1
-                while flag == 1 and j < len(new_route):
-                    if new_route[j][1] == FLY:
-                        flag = 0
-                        end_index = j
-                    elif new_route[j][1] == CATCH:
-                        flag = 0
-                        end_index = j
-                    else:
-                        flag = 1
-                    j += 1
-                    
-                    for k in range(start_index, end_index + 1):  
-                        drone_path = [value for value in new_route if value[1] != ONLY_TRUCK]  
-                        truck_path = [value for value in new_route if value[1] != ONLY_DRONE]
-                    
-                    for l in range(len(drone_path)-1):
-                        drone_distance += data["edge_km_t"][drone_path[l][0]][drone_path[l+1][0]]
-                        
-                    for m in range(len(truck_path)-1):    
-                        truck_distance += data["edge_km_d"][truck_path[m][0]][truck_path[m+1][0]]        
-                    
-                    drone_time = drone_distance / data["speed_d"] + (len(drone_path)-2)*data["service_time"]
-                    truck_time = truck_distance / data["speed_t"] + (len(truck_path)-1)*data["service_time"]
-                    
-                    if drone_time >= truck_time:
-                        total_time += drone_time
-                    else:
-                        total_time += truck_time
-                    
-                    drone_time = 0
-                    truck_time = 0
-                    
-        if total_time > data["maximum_system_duration"]:
+        # max system duration 넘으면 false 수정버전
+        # Multimodalstate의 calculate_time_per_route()는 단일 route를 인풋으로 받아서 그 라우트의 total_time_list와 waiting_time_list를 반환
+        if MultiModalState.calculate_time_per_route(self, new_route)[0][-1] > data["maximum_system_duration"]:
             return False
         
-        #트럭의 캐패시티도 이때 같이 고려(fly할 물류도 일단 트럭에 실려있으므로)
-        total_demand=0
-        for i in range(1,len(new_route)-1):
-            total_demand += data["demand"][new_route[i][0]]
-        
-        if total_demand > data["capacity_t"]:
+        # max waiting time 넘으면 false 수정버전
+        if any(element > data["max_waiting_time"] for element in MultiModalState.calculate_time_per_route(self, new_route)[1]):
             return False
         
-        #에너지 충전 및 소모로 인한 배터리 잔량에 대해 고려(드론의 ONE path로 고려(0,1,2,3 만 존재))
+        
+        #에너지 충전 및 소모로 인한 배터리 잔량에 대해 고려(드론의 ONE path로 고려(0,1,2,3만 존재))
         drone_current_kwh = data["battery_kwh_d"]
-        flag = 0
+        
+        drone_distance = 0
         for i in range(len(drone_path)):
+            flag = 0
             if drone_path[i][1] == IDLE: #배터리 충전 계산
                 drone_idle_distance = 0
                 start_index = i
@@ -296,27 +320,30 @@ class Repair():
                 while j < len(drone_path):
                     if drone_path[j][1] != IDLE:
                         end_index = j
+                        break
                     j += 1
                     
-                for k in range(start_index,end_index-1):
-                    drone_idle_distance += data["edge_km_d"][drone_path[k][0]][drone_path[k+1][0]]
+                for k in range(start_index,end_index+1):
+                    drone_idle_distance += data["edge_km_d"][drone_path[k-1][0]][drone_path[k][0]]
                 drone_idle_time = drone_idle_distance / data["speed_d"]
                     
-                if drone_current_kwh < data["battery_kwh_d"]:
+                if drone_current_kwh < data["battery_kwh_d"]: # 만땅이 아니라면
                     drone_current_kwh += (data["charging_kw_d"]/60) * drone_idle_time #우리는 시간이 분이니까 KW애 나누기60
                     if drone_current_kwh > data["battery_kwh_d"]:
                         drone_current_kwh = data["battery_kwh_d"] #충전해도 최대 배터리 양은 넘을 수 없음
                 
                 
-            elif drone_path[i][1] == FLY: #배터리 소모 계산
+            elif drone_path[i][1] == FLY and flag == 0: #배터리 소모 계산
                 start_index = i
                 j = i + 1
                 while j < len(drone_path):
                     if drone_path[j][1] == CATCH:
                         end_index = j
+                        flag = 1
+                        break
                     j += 1
-                    
-                for k in range(start_index,end_index-1):
+
+                for k in range(start_index,end_index):
                     drone_distance += data["edge_km_d"][drone_path[k][0]][drone_path[k+1][0]]
                 
                 energy_consumption = drone_distance * data["energy_kwh/km_d"]
@@ -326,12 +353,7 @@ class Repair():
                     return False
 
         return True
-    
         
-        
-
-
-
     def drone_insert_cost(self, customer, route, idx, routes): #드론 경로도 고려되어있으므로 분할 후, MM State.object() 적용
         """
         Computes the insertion cost for inserting customer in route at idx.
@@ -345,7 +367,7 @@ class Repair():
 
         return MultiModalState(routes).objective()
     
-    
+
     
     def truck_best_insert(self, customer, routes):
         """
@@ -368,113 +390,65 @@ class Repair():
     def truck_can_insert(self, data, customer, route, idx): 
         new_route = route[:idx] + [customer] + route[idx:]
         self.truck_repir_visit_type_update_route(new_route)
-        
-        total_demand=0
-        for i in range(1,len(new_route)-1):
-            total_demand += data["demand"][new_route[i][0]]
-        
-        if total_demand > data["capacity_t"]:
-            return False
-        
-        # max waiting time 넘으면 false
-        drone_time = 0
-        truck_time = 0
-        waiting_time = 0
-        drone_distance = 0
-        truck_distance = 0
-        flag = 0 
-        
-        for i in range(len(new_route)):
-            if flag == 0 and new_route[i][1] == FLY:
-                start_index = i
-                flag = 1
-                j = i + 1
-                while flag == 1 and j < len(new_route):
-                    if new_route[j][1] == FLY:
-                        flag = 0
-                        end_index = j
-                    elif new_route[j][1] == CATCH:
-                        flag = 0
-                        end_index = j
-                    else:
-                        flag = 1
-                    j += 1
-                
-                for k in range(start_index, end_index + 1):  
-                    drone_path = [value for value in new_route if value[1] != ONLY_TRUCK]  
-                    truck_path = [value for value in new_route if value[1] != ONLY_DRONE]
-                
-                for l in range(len(drone_path)-1):
-                    drone_distance += data["edge_km_t"][drone_path[l][0]][drone_path[l+1][0]]
-                    
-                for m in range(len(truck_path)-1):    
-                    truck_distance += data["edge_km_d"][truck_path[m][0]][truck_path[m+1][0]]        
-                
-                drone_time = drone_distance / data["speed_d"] + (len(drone_path)-2)*data["service_time"]
-                truck_time = truck_distance / data["speed_t"] + (len(truck_path)-1)*data["service_time"] #트럭은 fly 해주고 service 시작함
-                
-                if drone_time >= truck_time:
-                    waiting_time = drone_time - truck_time
-                else:
-                    waiting_time = truck_time - drone_time
-                    
-                if waiting_time > data["max_waiting_time"]: #단위는 min
-                    return False
-                
-                drone_time = 0
-                truck_time = 0
-                waiting_time = 0
-                drone_distance = 0
-                truck_distance = 0
 
-        # 최종적으로 Depot에 도착했을 때 total_time이 time limit 보다 크면 False
-        # visit_type이 idle이면 그냥 트럭시간으로 더해주고, 1 2 4 3 일때는 그안에서 트럭과 드론 중 큰 거로 계산 
-        total_time = 0
-        drone_time = 0
-        truck_time = 0
-        for i in range(len(new_route)-1):
-            if new_route[i][1] == IDLE or None:
-                total_time += (data["edge_km_t"][new_route[i][0]][new_route[i+1][0]])/data["speed_t"]
-            
-            elif flag == 0 and new_route[i][1] == FLY:
-                start_index = i
-                flag = 1
-                j = i + 1
-                while flag == 1 and j < len(new_route):
-                    if new_route[j][1] == FLY:
-                        flag = 0
-                        end_index = j
-                    elif new_route[j][1] == CATCH:
-                        flag = 0
-                        end_index = j
-                    else:
-                        flag = 1
-                    j += 1
-                    
-                    for k in range(start_index, end_index + 1):  
-                        drone_path = [value for value in new_route if value[1] != ONLY_TRUCK]  
-                        truck_path = [value for value in new_route if value[1] != ONLY_DRONE]
-                    
-                    for l in range(len(drone_path)-1):
-                        drone_distance += data["edge_km_t"][drone_path[l][0]][drone_path[l+1][0]]
-                        
-                    for m in range(len(truck_path)-1):    
-                        truck_distance += data["edge_km_d"][truck_path[m][0]][truck_path[m+1][0]]        
-                    
-                    drone_time = drone_distance / data["speed_d"] + (len(drone_path)-2)*data["service_time"]
-                    truck_time = truck_distance / data["speed_t"] + (len(truck_path)-1)*data["service_time"]
-                    
-                    if drone_time >= truck_time:
-                        total_time += drone_time
-                    else:
-                        total_time += truck_time
-                    
-                    drone_time = 0
-                    truck_time = 0
-                    
-        if total_time > data["maximum_system_duration"]:
+        truck_path = [value for value in new_route if value[1] != ONLY_DRONE]
+
+        
+        # logistic_load 관련 feasibility 제한조건 추가
+        # customer의 노드 하나가 truck_cargo_limit을 넘을리는 없을거고
+        # route에 새로 하나 추가되어 들어온 new_route를 봤을때, 이것에 해당하는 customer[0]들의 data의 합이 limit보다 크면 안됨
+        if sum(data["logistic_load"][customer[0]] for customer in new_route) > data["cargo_limit_truck"]:
+            return False
+
+        # max system duration 넘으면 false 수정버전
+        # Multimodalstate의 calculate_time_per_route()는 단일 route를 인풋으로 받아서 그 라우트의 total_time_list와 waiting_time_list를 반환
+        if MultiModalState.calculate_time_per_route(self, new_route)[0][-1] > data["maximum_system_duration"]:
             return False
         
+        # max waiting time 넘으면 false 수정버전
+        if any(element > data["max_waiting_time"] for element in MultiModalState.calculate_time_per_route(self, new_route)[1]):
+            return False
+        
+        # 에너지 충전 및 소모로 인한 배터리 잔량에 대해 고려(트럭의 ONE path로 고려(0,1,4,3 만 존재))
+        truck_current_kwh = data["battery_kwh_t"]
+        truck_distance = 0
+        truck_idle_distance = 0
+        start_index = 0
+        flag = 0
+        truck_drive_only = True
+        truck_drive_with_drone = False
+        
+        for idx, customer in enumerate(truck_path):
+            last_condition = (idx == len(truck_path) - 1) and truck_drive_with_drone
+            if (customer[1] == CATCH and truck_drive_only) or last_condition:
+                ### 이 인덱스까지 모두 더해준다
+                end_index = idx
+                for k in range(start_index, end_index):
+                    truck_distance += data["edge_km_t"][truck_path[k][0]][truck_path[k+1][0]]
+                energy_consumption = truck_distance * data["energy_kwh/km_t"]
+                truck_current_kwh -= energy_consumption
+
+                truck_drive_only = False
+                truck_drive_with_drone = True
+                start_index = idx
+            elif customer[1] == FLY and truck_drive_with_drone: 
+                ### 이 인덱스까지 모두 더해준다
+                end_index = idx
+                for k in range(start_index, end_index):
+                    truck_idle_distance += data["edge_km_t"][truck_path[k][0]][truck_path[k+1][0]]
+                energy_consumption = truck_idle_distance * data["energy_kwh/km_t"]
+                truck_idle_time = truck_idle_distance / data["speed_t"]
+
+                truck_current_kwh -= energy_consumption
+                truck_current_kwh -= (data["charging_kw_d"]/60) * truck_idle_time #우리는 시간이 분이니까 KW애 나누기60
+
+                truck_drive_with_drone = False
+                truck_drive_only = True
+                start_index = idx
+
+            if truck_current_kwh < data["battery_kwh_t"] * 0.05: #총 배터리의 5퍼센트 이상이 유지되어야 FLY
+                return False
+
         return True
 
 
@@ -620,7 +594,7 @@ class Repair():
                     routes[j] = [(0, 0), (0, 0)]
     
         return routes
-        
+    
     def extract_and_remain(self, original_list, condition):
         # 새로운 리스트 추출
         new_list = [x for x in original_list if condition(x)]
@@ -630,4 +604,3 @@ class Repair():
         
         # 결과 반환
         return new_list, remaining_list
-
