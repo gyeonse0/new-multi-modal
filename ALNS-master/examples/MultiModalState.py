@@ -12,8 +12,8 @@ from itertools import groupby
 from RouteGenerator import *
 from FileReader import *
 
-vrp_file_path = r'C:\Users\User\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.vrp'
-sol_file_path = r'C:\Users\User\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.sol'
+vrp_file_path = r'C:\Users\these\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.vrp'
+sol_file_path = r'C:\Users\these\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.sol'
 
 file_reader = FileReader()
 data = file_reader.read_vrp_file(vrp_file_path)
@@ -274,8 +274,8 @@ class MultiModalState:
                 else:
                     total_time += truck_time
                     waiting_time += (truck_time - drone_time)
-                
-                waiting_time_list.append(waiting_time)
+                if end_index != (len(route) - 1):
+                    waiting_time_list.append(waiting_time)
                 waiting_time = 0
                 drone_time = 0
                 truck_time = 0
