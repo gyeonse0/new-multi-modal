@@ -6,8 +6,8 @@ import random
 
 file_reader = FileReader()
 
-vrp_file_path = r'C:\Users\User\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.vrp'
-sol_file_path = r'C:\Users\User\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.sol'
+vrp_file_path = r'C:\Users\these\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.vrp'
+sol_file_path = r'C:\Users\these\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.sol'
 
 
 data = file_reader.read_vrp_file(vrp_file_path)
@@ -258,6 +258,28 @@ class Repair():
         selected_index = random.randint(0, 2)
 
         return best_routes[selected_index], best_idxs[selected_index]
+    
+    def truck_randomize_greedy_insert(self, customer, routes):
+        best_costs = [None, None, None]
+        best_routes = [None, None, None]
+        best_idxs = [None, None, None]
+
+        for route in routes:
+            for idx in range(1, len(route)):
+                if self.truck_can_insert(data, customer, route, idx):  # 삽입 가능한 경우
+                    cost = self.truck_insert_cost(customer, route, idx, routes)
+
+                    for i in range(3):
+                        if best_costs[i] is None or cost < best_costs[i]:
+                            best_costs.insert(i, cost)
+                            best_routes.insert(i, route)
+                            best_idxs.insert(i, idx)
+                            break
+
+        # Randomly select one of the top three costs
+        selected_index = random.randint(0, 2)
+
+        return best_routes[selected_index], best_idxs[selected_index]
         
     def drone_can_insert(self, data, customer, route, idx): 
         
@@ -397,7 +419,13 @@ class Repair():
         # logistic_load 관련 feasibility 제한조건 추가
         # customer의 노드 하나가 truck_cargo_limit을 넘을리는 없을거고
         # route에 새로 하나 추가되어 들어온 new_route를 봤을때, 이것에 해당하는 customer[0]들의 data의 합이 limit보다 크면 안됨
-        if sum(data["logistic_load"][customer[0]] for customer in new_route) > data["cargo_limit_truck"]:
+        # if sum(data["logistic_load"][customer[0]] for customer in new_route) > data["cargo_limit_truck"]:
+        #     return False
+        total_logistic_load = 0
+        for customer in new_route:
+            total_logistic_load += data["logistic_load"][customer[0]]
+
+        if total_logistic_load > data["cargo_limit_truck"]:
             return False
 
         # max system duration 넘으면 false 수정버전
