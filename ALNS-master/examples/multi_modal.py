@@ -19,8 +19,8 @@ from alns.stop import MaxIterations
 SEED = 1234
 rnd_state = np.random.RandomState(None)
 
-vrp_file_path = r'C:\Users\User\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.vrp'
-sol_file_path = r'C:\Users\User\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.sol'
+vrp_file_path = r'C:\Users\these\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.vrp'
+sol_file_path = r'C:\Users\these\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.sol'
 
 file_reader = FileReader()
 data = file_reader.read_vrp_file(vrp_file_path)
@@ -88,9 +88,9 @@ plotter = SolutionPlotter(data)
 alns = ALNS(rnd.RandomState(SEED))
 alns.add_destroy_operator(destroyer.random_removal)
 alns.add_repair_operator(Rep.drone_first_truck_second)
-alns.add_repair_operator(Rep.truck_first_drone_second)
+#alns.add_repair_operator(Rep.truck_first_drone_second)
 alns.add_repair_operator(Rep.heavy_insertion_repair)
-#alns.add_repair_operator(Rep.greedy_truck_repair)
+alns.add_repair_operator(Rep.greedy_truck_repair)
 
 init = initializer.makemakemake(initial_solution)
 
@@ -119,7 +119,7 @@ print(f"This is {pct_diff:.1f}%  better than the initial solution, which is 7.")
 _, ax = plt.subplots(figsize=(12, 6))
 result.plot_objectives(ax=ax)
 ax.set_xlim(right=10000)  # x 축 범위를 5000으로 제한
-ax.set_xticks(np.arange(0, 10001, 200))  # x 축의 눈금을 0부터 5000까지 100 간격으로 설정
+ax.set_xticks(np.arange(0, 10001, 500))  # x 축의 눈금을 0부터 5000까지 100 간격으로 설정
 plt.tight_layout()
 plt.show()
 
