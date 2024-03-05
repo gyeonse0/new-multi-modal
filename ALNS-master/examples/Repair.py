@@ -130,42 +130,37 @@ class Repair():
         # return MultiModalState(routes, unassigned)
     
     def truck_first_drone_second(self, state, rnd_state):
-        state_after_truck_repair = self.greedy_truck_repair(MultiModalState(state.routes, state.unassigned), rnd_state)
-        routes = state_after_truck_repair.routes
-        unassigned = state_after_truck_repair.unassigned
-        """여기에 아래처럼 while로 들어가지 않고
-        greedy하게 full state에 드론 넣어주는 함수를 제작해줘야할듯
-
-        Returns:
-            _type_: _description_
         """
+
+        """
+        truck_first_drone_second_repairs = MultiModalState(state.routes, state.unassigned)
+        routes = truck_first_drone_second_repairs.routes
+        unassigned = truck_first_drone_second_repairs.unassigned
+
         while len(unassigned) > 0:
             customer = random.choice(unassigned)
             unassigned.remove(customer)
-            best_route, best_idx = self.drone_best_insert(customer, routes)
-            
+            best_route, best_idx = self.truck_best_insert(customer, routes)
+
             if best_route is not None and best_idx is not None:
                 for i, route in enumerate(routes):
                     if route == best_route:
                         routes[i] = route[:best_idx] + [customer] + route[best_idx:]
-                        self.drone_repair_visit_type_update(routes)
-            else:
-                # routes에 [(0, 0), (0, 0)]이 없으면
-                if not any(route == [(0, 0), (0, 0)] for route in routes):
-                    # routes 뒤에 새로운 route 추가
-                    routes.append([(0, 0), customer, (0, 0)])
-                else:
-                    for i, route in enumerate(routes):
-                        if route == [(0, 0), (0, 0)]:
-                            # 빈 route에 고객 추가
-                            routes[i] = [(0, 0), (customer[0],0), (0, 0)]
-                            
-            routes = [route for route in routes if route != [(0, 0), (0, 0)]]
-                                        
-        self.drone_repair_visit_type_update(routes) #최종적으로 visit_type 검사
+                        self.truck_repair_visit_type_update(routes)
+            
+        self.truck_repair_visit_type_update(routes)
         self.route_duplication_check(routes)
-        
-        return MultiModalState(routes, unassigned)
+
+        state_after_truck_repairs = MultiModalState(routes,unassigned)
+
+        if len(state_after_truck_repairs.unassigned)>0:
+            after_drone_repairs = self.greedy_drone_repair(state_after_truck_repairs,rnd_state)
+
+            if len(after_drone_repairs.unassigned)>0:
+                return self.new_truck_route(state_after_truck_repairs,rnd_state)
+            
+        else:
+            return state_after_truck_repairs
         
     def greedy_truck_repair(self, state, rnd_state):
         truck_repair = MultiModalState(state.routes, state.unassigned)
@@ -219,8 +214,33 @@ class Repair():
         self.drone_repair_visit_type_update(routes) #최종적으로 visit_type 검사
         self.route_duplication_check(routes)
 
+        return MultiModalState(routes, unassigned
+                              
+    def new_truck_route(self, state, rnd_state):
+        new_truck_state = MultiModalState(state.routes,state.unassigned)
+        routes = new_truck_state.routes
+        unassigned = new_truck_state.unassigned
+
+        while len(unassigned) > 0:
+            customer = random.choice(unassigned)
+            unassigned.remove(customer)
+            
+            if not any(route == [(0, 0), (0, 0)] for route in routes):
+                    # routes 뒤에 새로운 route 추가
+                    routes.append([(0, 0), customer, (0, 0)])
+            else:
+                for i, route in enumerate(routes):
+                    if route == [(0, 0), (0, 0)]:
+                        # 빈 route에 고객 추가
+                        routes[i] = [(0, 0), (customer[0],0), (0, 0)]
+                            
+            routes = [route for route in routes if route != [(0, 0), (0, 0)]]
+
+        self.truck_repair_visit_type_update(routes) #최종적으로 visit_type 검사
+        self.route_duplication_check(routes)
+
         return MultiModalState(routes, unassigned)
-    
+        
     def drone_best_insert(self, customer, routes):
         """
         Finds the best feasible route and insertion idx for the customer.
