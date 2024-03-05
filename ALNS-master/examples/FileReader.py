@@ -21,6 +21,7 @@ class FileReader:
             "capacity_t": None,
             "capacity_d": None,
             "cargo_limit_drone": None,
+            "cargo_limit_truck": None,
             "battery_kwh_t": None,
             "battery_kwh_d": None,
             "energy_kwh/km_t": None,
@@ -99,6 +100,8 @@ class FileReader:
                 self.data["capacity_d"] = float(value)
             elif keyword == "CARGO_LIMIT_DRONE:":
                 self.data["cargo_limit_drone"] = float(value)
+            elif keyword == "CARGO_LIMIT_TRUCK:":
+                self.data["cargo_limit_truck"] = float(value)
             elif keyword == "BATTERY_KWH_T:":
                 self.data["battery_kwh_t"] = float(value)
             elif keyword == "BATTERY_KWH_D:":
