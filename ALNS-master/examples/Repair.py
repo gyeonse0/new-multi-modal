@@ -56,6 +56,8 @@ class Repair():
                             # 빈 route에 고객 추가
                             routes[i] = [(0, 0), (customer_heavy[0],0), (0, 0)]
 
+            routes = [route for route in routes if route != [(0, 0), (0, 0)]]
+
         self.truck_repair_visit_type_update(routes) #최종적으로 visit_type 검사
         self.route_duplication_check(routes)
 
