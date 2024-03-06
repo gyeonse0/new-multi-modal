@@ -152,15 +152,17 @@ class Repair():
         self.route_duplication_check(routes)
 
         state_after_truck_repairs = MultiModalState(routes,unassigned)
+        state_after_drone_repairs = MultiModalState(routes,unassigned)
 
         if len(state_after_truck_repairs.unassigned)>0:
-            after_drone_repairs = self.greedy_drone_repair(state_after_truck_repairs,rnd_state)
-
-            if len(after_drone_repairs.unassigned)>0:
-                return self.new_truck_route(state_after_truck_repairs,rnd_state)
+            if len(state_after_drone_repairs.unassigned)>0:
+                return self.new_truck_route(state_after_drone_repairs,rnd_state)
+            else:
+                return state_after_drone_repairs
             
         else:
             return state_after_truck_repairs
+            
         
     def greedy_truck_repair(self, state, rnd_state):
         truck_repair = MultiModalState(state.routes, state.unassigned)
