@@ -13,8 +13,8 @@ from RouteInitializer import *
 from FileReader import *
 from Repair import *
 
-vrp_file_path = r'C:\Users\82102\Desktop\ALNS-master\examples\data\multi_modal_data.vrp'
-sol_file_path = r'C:\Users\82102\Desktop\ALNS-master\examples\data\multi_modal_data.sol'
+vrp_file_path = r'C:\Users\User\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.vrp'
+sol_file_path = r'C:\Users\User\Downloads\new-multi-modal-main\new-multi-modal-main\ALNS-master\examples\data\multi_modal_data.sol'
 
 file_reader = FileReader()
 data = file_reader.read_vrp_file(vrp_file_path)
@@ -56,115 +56,125 @@ class Destroy:
         return MultiModalState(routes, unassigned)
     
     
+    def heavy_first_removal(self, state, rnd_state):
+        destroyer = MultiModalState(state.routes, state.unassigned)
+        routes = destroyer.routes
+        unassigned = destroyer.unassigned
+
+        repair_instance = Repair() #repair에서 넘어올때 visit_type_update 한번 더 검사
+        repair_instance.truck_repair_visit_type_update(routes)
+        repair_instance.drone_repair_visit_type_update(routes)
+        
+        self.unassigned_check(routes, unassigned)
+
+        """
+        고객 데이터에서 랜딩스팟유무, 물류중량, 고객선호도의 조건만을 통과한 노드를 먼저 제거
+        """
+        eligible_customers = [customer for customer in range(1, data["dimension"]) if data["logistic_load"][customer] > data["cargo_limit_drone"]]
+        finally_eligible_customers = rnd_state.choice(eligible_customers, size=min(len(eligible_customers), customers_to_remove), replace=False)
+        for customer in finally_eligible_customers:
+            self.random_removal_visit_type_update(customer, routes, unassigned)
+        routes = [[point for point in route if point[1] is not None] for route in routes]
+
+        return MultiModalState(routes, unassigned)
     
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    def random_removal_visit_type_update(slef, customer, routes, unassigned):
+    def random_removal_visit_type_update(self, customer, routes, unassigned):
         
         for route in routes:
-                for i in range(0, len(route) - 1):
-                    if route[i][0] == customer:
-                        if route[i][1] == IDLE:
-                            route[i] = (route[i][0], NULL)
-                            if (route[i][0], route[i][1]) not in unassigned:
-                                unassigned.append((route[i][0], route[i][1]))
-                                
-                for i in range(1, len(route)-1):
-                    if route[i][0] == customer:
-                        if route[i][1] == ONLY_DRONE:
-                            route[i] = (route[i][0], NULL)
-                            if (route[i][0], route[i][1]) not in unassigned:
-                                unassigned.append((route[i][0], route[i][1]))
+            for i in range(0, len(route) - 1):
+                if route[i][0] == customer:
+                    if route[i][1] == IDLE:
+                        route[i] = (route[i][0], NULL)
+                        if (route[i][0], route[i][1]) not in unassigned:
+                            unassigned.append((route[i][0], route[i][1]))
                             
-                            if i == 1:
-                                if route[i - 1][1] == FLY:
-                                    route[i - 1] = (route[i - 1][0], IDLE)
-                                
-                            j = i + 1
-                            while j<= len(route) and (route[j][1] != FLY and route[j][1] != CATCH):
-                                if route[j][1] == ONLY_DRONE:
-                                    route[j] = (route[j][0], NULL)
-                                    if (route[j][0], route[j][1]) not in unassigned:
-                                        unassigned.append((route[j][0], route[j][1]))
-                                elif route[j][1] == ONLY_TRUCK and route[j][1] != NULL:
-                                    route[j] = (route[j][0], IDLE)
-                                j += 1
-                                
-                            if route[j][1] == CATCH:  
+            for i in range(1, len(route)-1):
+                if route[i][0] == customer:
+                    if route[i][1] == ONLY_DRONE:
+                        route[i] = (route[i][0], NULL)
+                        if (route[i][0], route[i][1]) not in unassigned:
+                            unassigned.append((route[i][0], route[i][1]))
+                        
+                        if i == 1:
+                            if route[i - 1][1] == FLY:
+                                route[i - 1] = (route[i - 1][0], IDLE)
+                            
+                        j = i + 1
+                        while j<= len(route) and (route[j][1] != FLY and route[j][1] != CATCH):
+                            if route[j][1] == ONLY_DRONE:
+                                route[j] = (route[j][0], NULL)
+                                if (route[j][0], route[j][1]) not in unassigned:
+                                    unassigned.append((route[j][0], route[j][1]))
+                            elif route[j][1] == ONLY_TRUCK and route[j][1] != NULL:
+                                route[j] = (route[j][0], IDLE)
+                            j += 1
+                            
+                        if route[j][1] == CATCH:  
+                            route[j] = (route[j][0], IDLE)
+                        
+                        
+                        if i >= 2 :
+                            k = i - 1
+                            while k >= 0 and route[k][1] != FLY:
+                                if route[k][1] == ONLY_DRONE:
+                                    route[k] = (route[k][0], NULL)
+                                    if (route[k][0], route[k][1]) not in unassigned:
+                                        unassigned.append((route[k][0], route[k][1]))
+                                elif route[k][1] == ONLY_TRUCK:
+                                    route[k] = (route[k][0], IDLE)
+                                k -= 1
+                            
+                            if k == 0 and route[k][1] == FLY:
+                                route[k] = (route[k][0], IDLE)
+                            elif k > 0 and route[k][1] == FLY:
+                                if route[k - 1][1] == CATCH:
+                                    route[k] = (route[k][0], IDLE)
+                                elif route[k - 1][1] == IDLE:
+                                    route[k] = (route[k][0], IDLE)
+                                elif route[k - 1][1] == ONLY_DRONE:
+                                    route[k] = (route[k][0], CATCH)
+                                elif route[k - 1][1] == ONLY_TRUCK:
+                                    route[k] = (route[k][0], CATCH)
+
+        
+            for i in range(2, len(route)-1):
+                if route[i][0] == customer:
+                    if route[i][1] == CATCH:
+                        route[i] = (route[i][0], NULL)
+                        if (route[i][0], route[i][1]) not in unassigned:
+                            unassigned.append((route[i][0], route[i][1]))
+                        j = i - 1
+                        while j>0 and route[j][1] != FLY:
+                            if route[j][1] == ONLY_DRONE:
+                                route[j] = (route[j][0], NULL)
+                                if (route[j][0], route[j][1]) not in unassigned:
+                                    unassigned.append((route[j][0], route[j][1]))
+                            elif route[j][1] == ONLY_TRUCK and route[j][1] != NULL:
+                                route[j] = (route[j][0], IDLE)
+                            j -= 1
+                        
+                        if j==0:
+                            if route[j][1] == FLY:
                                 route[j] = (route[j][0], IDLE)
                             
-                            
-                            if i >= 2 :
-                                k = i - 1
-                                while k >= 0 and route[k][1] != FLY:
-                                    if route[k][1] == ONLY_DRONE:
-                                        route[k] = (route[k][0], NULL)
-                                        if (route[k][0], route[k][1]) not in unassigned:
-                                            unassigned.append((route[k][0], route[k][1]))
-                                    elif route[k][1] == ONLY_TRUCK:
-                                        route[k] = (route[k][0], IDLE)
-                                    k -= 1
-                                
-                                if k == 0 and route[k][1] == FLY:
-                                    route[k] = (route[k][0], IDLE)
-                                elif k > 0 and route[k][1] == FLY:
-                                    if route[k - 1][1] == CATCH:
-                                        route[k] = (route[k][0], IDLE)
-                                    elif route[k - 1][1] == IDLE:
-                                        route[k] = (route[k][0], IDLE)
-                                    elif route[k - 1][1] == ONLY_DRONE:
-                                        route[k] = (route[k][0], CATCH)
-                                    elif route[k - 1][1] == ONLY_TRUCK:
-                                        route[k] = (route[k][0], CATCH)
-
-            
-                for i in range(2, len(route)-1):
-                    if route[i][0] == customer:
-                        if route[i][1] == CATCH:
-                            route[i] = (route[i][0], NULL)
-                            if (route[i][0], route[i][1]) not in unassigned:
-                                unassigned.append((route[i][0], route[i][1]))
-                            j = i - 1
-                            while j>0 and route[j][1] != FLY:
-                                if route[j][1] == ONLY_DRONE:
-                                    route[j] = (route[j][0], NULL)
-                                    if (route[j][0], route[j][1]) not in unassigned:
-                                        unassigned.append((route[j][0], route[j][1]))
-                                elif route[j][1] == ONLY_TRUCK and route[j][1] != NULL:
+                        elif j>=1:
+                            if route[j][1] == FLY:
+                                if route[j-1][1] == CATCH and route[j-1][1] != NULL:
                                     route[j] = (route[j][0], IDLE)
-                                j -= 1
-                            
-                            if j==0:
-                                if route[j][1] == FLY:
+                                elif route[j-1][1] == IDLE and route[j-1][1] != NULL:
                                     route[j] = (route[j][0], IDLE)
-                                
-                            elif j>=1:
-                                if route[j][1] == FLY:
-                                    if route[j-1][1] == CATCH and route[j-1][1] != NULL:
-                                        route[j] = (route[j][0], IDLE)
-                                    elif route[j-1][1] == IDLE and route[j-1][1] != NULL:
-                                        route[j] = (route[j][0], IDLE)
-                                    elif route[j-1][1] == ONLY_DRONE and route[j-1][1] != NULL:
-                                        route[j] = (route[j][0], CATCH)
-                                    elif route[j-1][1] == ONLY_TRUCK and route[j-1][1] != NULL:
-                                        route[j] = (route[j][0], CATCH)
-                            
-                for i in range(1,len(route)-1):
-                    if route[i][0] == customer:
-                        if route[i][1] == ONLY_TRUCK:
-                            route[i] = (route[i][0], NULL)
-                            if (route[i][0], route[i][1]) not in unassigned:
-                                unassigned.append((route[i][0], route[i][1]))
+                                elif route[j-1][1] == ONLY_DRONE and route[j-1][1] != NULL:
+                                    route[j] = (route[j][0], CATCH)
+                                elif route[j-1][1] == ONLY_TRUCK and route[j-1][1] != NULL:
+                                    route[j] = (route[j][0], CATCH)
+                        
+            for i in range(1,len(route)-1):
+                if route[i][0] == customer:
+                    if route[i][1] == ONLY_TRUCK:
+                        route[i] = (route[i][0], NULL)
+                        if (route[i][0], route[i][1]) not in unassigned:
+                            unassigned.append((route[i][0], route[i][1]))
                                 
         return routes, unassigned
     
