@@ -70,11 +70,11 @@ class Destroy:
         """
         고객 데이터에서 랜딩스팟유무, 물류중량, 고객선호도의 조건만을 통과한 노드를 먼저 제거
         """
-        eligible_customers = [customer for customer in range(1, data["dimension"]) if data["logistic_load"][customer] > data["cargo_limit_drone"]]
+        eligible_customers = [customer for customer in range(1, data["dimension"]) if data["logistic_load"][customer] < data["cargo_limit_drone"] or data["availability_landing_spot"][customer] == 1 or data["customer_drone_preference"][customer] == 1]
         finally_eligible_customers = rnd_state.choice(eligible_customers, size=min(len(eligible_customers), customers_to_remove), replace=False)
         for customer in finally_eligible_customers:
             self.random_removal_visit_type_update(customer, routes, unassigned)
-        routes = [[point for point in route if point[1] is not None] for route in routes]
+            routes = [[point for point in route if point[1] is not None] for route in routes]
 
         return MultiModalState(routes, unassigned)
     
@@ -88,7 +88,49 @@ class Destroy:
                         route[i] = (route[i][0], NULL)
                         if (route[i][0], route[i][1]) not in unassigned:
                             unassigned.append((route[i][0], route[i][1]))
+            for i in range(0, len(route)-1):
+                    if route[i][0] == customer:
+                        if route[i][1] == FLY:
+                            route[i] = (route[i][0], NULL)
+                            if (route[i][0], route[i][1]) not in unassigned:
+                                unassigned.append((route[i][0], route[i][1]))
                             
+                            j = i + 1
+                            while j<= len(route)-1 and (route[j][1] != FLY and route[j][1] != CATCH):
+                                if route[j][1] == ONLY_DRONE:
+                                    route[j] = (route[j][0], NULL)
+                                    if (route[j][0], route[j][1]) not in unassigned:
+                                        unassigned.append((route[j][0], route[j][1]))
+                                elif route[j][1] == ONLY_TRUCK and route[j][1] != NULL:
+                                    route[j] = (route[j][0], IDLE)
+                                j += 1
+                                
+                            if route[j][1] == CATCH:  
+                                route[j] = (route[j][0], IDLE)
+
+                            if i >= 2 :
+                                k = i - 1
+                                while k >= 0 and route[k][1] != FLY:
+                                    if route[k][1] == ONLY_DRONE:
+                                        route[k] = (route[k][0], NULL)
+                                        if (route[k][0], route[k][1]) not in unassigned:
+                                            unassigned.append((route[k][0], route[k][1]))
+                                    elif route[k][1] == ONLY_TRUCK:
+                                        route[k] = (route[k][0], IDLE)
+                                    k -= 1
+                                
+                                if k == 0 and route[k][1] == FLY:
+                                    route[k] = (route[k][0], IDLE)
+                                elif k > 0 and route[k][1] == FLY:
+                                    if route[k - 1][1] == CATCH:
+                                        route[k] = (route[k][0], IDLE)
+                                    elif route[k - 1][1] == IDLE:
+                                        route[k] = (route[k][0], IDLE)
+                                    elif route[k - 1][1] == ONLY_DRONE:
+                                        route[k] = (route[k][0], CATCH)
+                                    elif route[k - 1][1] == ONLY_TRUCK:
+                                        route[k] = (route[k][0], CATCH)
+                                                       
             for i in range(1, len(route)-1):
                 if route[i][0] == customer:
                     if route[i][1] == ONLY_DRONE:
