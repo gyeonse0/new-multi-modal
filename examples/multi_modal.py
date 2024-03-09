@@ -107,7 +107,7 @@ print("\nBest Objective Value:",current_states[min_index].objective())
 print("Best Solution:",current_states[min_index].routes)
 print("Iteration #:",min_index)
 pct_diff = 100 * (current_states[min_index].objective() - init.objective()) / init.objective()
-print(f"This is {pct_diff:.1f}% better than the initial solution, which is {init.objective()}.")
+print(f"This is {-(pct_diff):.1f}% better than the initial solution, which is {init.objective()}.")
 
 plotter.plot_current_solution(current_states[min_index])
 
