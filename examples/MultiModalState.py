@@ -13,8 +13,8 @@ from RouteGenerator import *
 from FileReader import *
 
 
-vrp_file_path = r'C:\Users\User\OneDrive\바탕 화면\examples\data\multi_modal_data.vrp'
-sol_file_path = r'C:\Users\User\OneDrive\바탕 화면\examples\data\multi_modal_data.sol'
+vrp_file_path = r'C:\Users\User\OneDrive\multi-modal\new-multi-modal-main\examples\data\multi_modal_data.vrp'
+sol_file_path = r'C:\Users\User\OneDrive\multi-modal\new-multi-modal-main\examples\data\multi_modal_data.sol'
 
 
 file_reader = FileReader()
@@ -60,6 +60,7 @@ class MultiModalState:
         
     def charging_objective(self):
         charging_objective = 0
+        consumption = 0
         for route in self.routes:
             truck_path = [value for value in route if value[1] != ONLY_DRONE]
             start_index = 0
@@ -80,13 +81,128 @@ class MultiModalState:
                     truck_idle_time = truck_idle_distance / data["speed_t"]
 
                     charging_objective += (data["charging_kw_d"]) * (truck_idle_time/60)
-
+                    if charging_objective > consumption:
+                        charging_objective = consumption
                     truck_drive_with_drone = False
                     truck_drive_only = True
                     start_index = idx
         return charging_objective
 
-        
+    def drone_soc(self):
+        routes_d = []
+        ofvs = []
+        for route in self.routes:
+            #drone_path = [value[0] for value in route if value[1] != ONLY_TRUCK]
+            start_index = 0
+            first = True
+            truck_drive_only = True
+            truck_drive_with_drone = False
+            drone_current_kwh = data["battery_kwh_d"]
+            drone_distance = 0
+            drone_idle_distance = 0
+            ofv = []
+            customer_by_drone = [customer[0] for customer in route]
+            for idx, customer in enumerate(route):
+                # 맨처음 반영해주기 위해 추가
+                last_condition = (idx == len(route) - 1) and truck_drive_with_drone
+                if customer[1] == FLY and first:
+                    start_index = idx
+                    ofv = [drone_current_kwh] * (idx+1)
+                    first = False
+                # 얘까지는 ofv 그대로 채우기
+                elif (customer[1] == CATCH and truck_drive_only):
+                    # <드론이 미션 수행하는 케이스>, 이 인덱스까지 모두 더해준다
+                    end_index = idx
+                    for k in range(start_index, end_index):
+                        if route[k][1] == ONLY_TRUCK:
+                            ofv.append(drone_current_kwh)
+                            continue
+                        drone_distance = data["edge_km_d"][route[k][0]][route[k+1][0]]
+                        energy_consumption = drone_distance * data["energy_kwh/km_d"]
+                        drone_current_kwh -= energy_consumption
+                        ofv.append(drone_current_kwh)
+
+                    truck_drive_only = False
+                    truck_drive_with_drone = True
+                    start_index = idx
+                elif customer[1] == FLY and truck_drive_with_drone: 
+                    # <드론이 업혀있는 케이스>, 이 인덱스까지 모두 더해준다
+                    end_index = idx
+                    for k in range(start_index, end_index):
+                        drone_idle_distance = data["edge_km_d"][route[k][0]][route[k+1][0]]
+                        #energy_consumption = drone_idle_distance * data["energy_kwh/km_t"]
+                        drone_idle_time = drone_idle_distance / data["speed_d"]
+                        #drone_current_kwh -= energy_consumption
+                        if drone_current_kwh < data["battery_kwh_d"]: # 만땅이 아니라면
+                            drone_current_kwh += (data["charging_kw_d"]) * (drone_idle_time/60) #kwh 단위 고려
+                            if drone_current_kwh > data["battery_kwh_d"]:
+                                drone_current_kwh = data["battery_kwh_d"] #충전해도 최대 배터리 양은 넘을 수 없음
+                        ofv.append(drone_current_kwh)
+                    truck_drive_with_drone = False
+                    truck_drive_only = True
+                    start_index = idx
+                elif last_condition:
+                    ofv.extend([drone_current_kwh] * (idx - end_index))
+                # 정말 한 라우트의 모든 비짓 타입이 꽁일 경우도 생각해줘야할듯 
+                elif(idx == len(route) - 1) and truck_drive_only:
+                    ofv = [drone_current_kwh] * (idx+1)
+            soc = [x / data["battery_kwh_d"] * 100 for x in ofv]
+            ofvs.append(soc)
+            routes_d.append(customer_by_drone)
+        return routes_d, ofvs
+
+    def truck_soc(self):
+        routes_t = []
+        ofvs = []
+        for route in self.routes:
+            #truck_path = [value for value in route if value[1] != ONLY_DRONE]
+            start_index = 0
+            truck_drive_only = True
+            truck_drive_with_drone = False
+            truck_current_kwh = data["battery_kwh_t"]
+            truck_distance = 0
+            truck_idle_distance = 0
+            start_index = 0
+            ofv = [truck_current_kwh]
+            customer_by_truck = [customer[0] for customer in route]
+            for idx, customer in enumerate(route):
+                last_condition = (idx == len(route) - 1) and truck_drive_with_drone
+                if (customer[1] == CATCH and truck_drive_only) or last_condition:
+            
+                    ### 이 인덱스까지 모두 더해준다
+                    end_index = idx
+                    for k in range(start_index, end_index):
+                        if route[k][1] == ONLY_DRONE:
+                            ofv.append(truck_current_kwh)
+                            continue
+                        truck_distance = data["edge_km_t"][route[k][0]][route[k+1][0]]
+                        energy_consumption = truck_distance * data["energy_kwh/km_t"]
+                        truck_current_kwh -= energy_consumption
+                        ofv.append(truck_current_kwh)
+
+                    truck_drive_only = False
+                    truck_drive_with_drone = True
+                    start_index = idx
+                
+                elif customer[1] == FLY and truck_drive_with_drone: 
+                    ### 이 인덱스까지 모두 더해준다
+                    end_index = idx
+                    for k in range(start_index, end_index):
+                        truck_idle_distance = data["edge_km_t"][route[k][0]][route[k+1][0]]
+                        energy_consumption = truck_idle_distance * data["energy_kwh/km_t"]
+                        truck_idle_time = truck_idle_distance / data["speed_t"]
+                        truck_current_kwh -= energy_consumption
+                        truck_current_kwh -= (data["charging_kw_d"]) * (truck_idle_time/60)
+                        ofv.append(truck_current_kwh)
+                    truck_drive_with_drone = False
+                    truck_drive_only = True
+                    start_index = idx
+                elif (idx == len(route) - 1) and truck_drive_only:
+                    ofv = [data["battery_kwh_t"]] * len(route)
+            soc = [x / data["battery_kwh_t"] * 100 for x in ofv]
+            ofvs.append(soc)
+            routes_t.append(customer_by_truck)
+        return routes_t, ofvs
     
     def objective(self):
         """
@@ -132,7 +248,8 @@ class MultiModalState:
     def new_objective(self):
 
         divided_routes = apply_dividing_route_to_routes(self.routes)
-        energy_consumption = 0.0
+        drone_energy_consumption = 0.0
+        truck_energy_consumption = 0.0
 
         for route_info in divided_routes:
             vtype = route_info['vtype']
@@ -140,11 +257,12 @@ class MultiModalState:
 
             if vtype == 'truck':
                 for i in range(len(path) - 1):
-                    loc_from = path[i][0] if isinstance(path[i], tuple) else path[i]
-                    loc_to = path[i+1][0] if isinstance(path[i+1], tuple) else path[i+1]
-
-                    edge_weight = data["edge_km_t"][loc_from][loc_to]
-                    energy_consumption += edge_weight * data["energy_kwh/km_t"]
+                    edge_weight = data["edge_km_t"][path[i][0]][path[i+1][0]]
+                    truck_energy_consumption += edge_weight * data["energy_kwh/km_t"]
+                # soft constraint
+                # if truck_energy_consumption > data["battery_kwh_t"] * (1 - data["min_soc_t"]/100):
+                #     penalty = truck_energy_consumption
+                #     truck_energy_consumption += penalty
 
             
             elif vtype == 'drone': #드론은 1(fly)부터 3(catch)까지만의 edge를 반복적으로 고려해준다는 알고리즘
@@ -163,16 +281,62 @@ class MultiModalState:
                             edge_weight = data["edge_km_d"][path[k][0]][path[k+1][0]]
                             edge_time = (edge_weight / (data["speed_d"]))/60 #hour
                             if path[k+1][1]==2:
-                                energy_consumption += self.detail_drone_modeling(current_logistic_load,edge_time)
+                                drone_energy_consumption += self.detail_drone_modeling(current_logistic_load,edge_time)
                                 current_logistic_load -= data["logistic_load"][path[k+1][0]] 
                             elif path[k+1][1]==1 or path[k+1]==3:
-                                energy_consumption += self.detail_just_drone_modeling(edge_time)
+                                drone_energy_consumption += self.detail_just_drone_modeling(edge_time)
                                 current_logistic_load = 0
+                            # 드론의 에너지 소비 중, charging도 된다.
                         flag=0
                         
-        return energy_consumption
+        return drone_energy_consumption + truck_energy_consumption + self.charging_objective()
     
-    ##지금 이거 충전고려 안해줄때 해주려고 + self.charging_objective() 빼준거임 
+    def neww_objective(self):
+        penalty = 0
+        drone_energy_consumtion = 0
+        truck_energy_consumtion = 0
+        for route in range(len(self.routes.routes)):
+            drone_energy_consumtion += self.drone_soc()[1][route][0] - self.drone_soc()[1][route][-1]
+            truck_energy_consumtion += self.truck_soc()[1][route][0] - self.truck_soc()[1][route][-1]
+            if self.drone_soc()[1][route][-1] < data["battery_kwh_d"] * (data["min_soc_d"]/100):
+                penalty += 5
+            if self.truck_soc()[1][route][-1] < data["battery_kwh_t"] * (data["min_soc_t"]/100):
+                penalty += 5
+            
+        return drone_energy_consumtion + truck_energy_consumtion + self.charging_objective() + penalty
+    
+    def feasibility(self):
+        
+        return
+
+    def objective_value_list(self):
+        routes = self.routes
+        ofvs = []
+        routes_t = []
+        divided_routes = apply_dividing_route_to_routes(routes)
+        
+        for route_info in divided_routes:
+            energy_consumption = 0.0  # 각 그래프를 따로 그리기 위해 enerygy consumption 초기화
+            ofv = [data["battery_kwh_t"]]
+            route_t = [0]
+            vtype = route_info['vtype']
+            path = route_info['path']
+
+            if vtype == 'truck':
+                for i in range(len(path) - 1):
+                    loc_from = path[i][0] if isinstance(path[i], tuple) else path[i]
+                    loc_to = path[i+1][0] if isinstance(path[i+1], tuple) else path[i+1]
+
+                    edge_weight = data["edge_km_t"][loc_from][loc_to]
+                    energy_consumption += edge_weight * data["energy_kwh/km_t"]
+                    ofv.append(data["battery_kwh_t"] - energy_consumption)
+                    route_t.append(loc_to)
+                soc = [x / data["battery_kwh_t"] * 100 for x in ofv]
+                ofvs.append(soc)
+                routes_t.append(route_t)
+
+                
+        return routes_t, ofvs
     
     def detail_drone_modeling(self,current_logistic_load,edge_time):
         
@@ -184,19 +348,6 @@ class MultiModalState:
         drone_consumption = ((((data["mass_d"])*data["speed_d"]*60)/(370*data["lift_to_drag"]*data["power_motor_prop"]))+data["power_elec"])*edge_time
         return drone_consumption
     
-    def truck_objective(truck_path, data):
-        energy_consumption = 0
-
-        for i in range(len(truck_path) - 1):
-            loc_from = truck_path[i][0] if isinstance(truck_path[i], tuple) else truck_path[i]
-            loc_to = truck_path[i + 1][0] if isinstance(truck_path[i + 1], tuple) else truck_path[i + 1]
-
-            edge_weight = data["edge_km_t"][loc_from][loc_to]
-            energy_consumption += edge_weight * data["energy_kwh/km_t"]
-
-        return energy_consumption
-        
-
     def objective_time_penalty(self):
         """
         energy_consumption + waiting time penalty

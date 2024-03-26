@@ -14,8 +14,8 @@ from FileReader import *
 from Repair import *
 
 
-vrp_file_path = r'C:\Users\User\OneDrive\바탕 화면\examples\data\multi_modal_data.vrp'
-sol_file_path = r'C:\Users\User\OneDrive\바탕 화면\examples\data\multi_modal_data.sol'
+vrp_file_path = r'C:\Users\User\OneDrive\multi-modal\new-multi-modal-main\examples\data\multi_modal_data.vrp'
+sol_file_path = r'C:\Users\User\OneDrive\multi-modal\new-multi-modal-main\examples\data\multi_modal_data.sol'
 
 file_reader = FileReader()
 data = file_reader.read_vrp_file(vrp_file_path)
